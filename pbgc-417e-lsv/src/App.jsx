@@ -1,9 +1,42 @@
 import { useMemo, useState } from "react";
+import "./App.css";
+
 import ratesByMonth from "./data/rates/segment_rates.json";
 import mort2024 from "./data/mortality/417e_2024_unisex.json";
 import { parseISODate, ymKeyFromISODate } from "./domain/dates.js";
 import { computeCase } from "./domain/engine.js";
 import { FORMS } from "./domain/forms.js";
+
+/**
+ * PBGC display rules (per your instructions):
+ * 1) Monthly amounts: 2 decimals
+ * 2) Present values + lump sums: 0 decimals
+ * 3) Currency: commas (grouping)
+ */
+const USD_2 = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const USD_0 = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+const NUM_0 = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+});
+
+const PCT_2 = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function num(v, fallback = 0) {
   const x = Number(v);
@@ -31,6 +64,10 @@ export default function App() {
   const rates = ratesByMonth[ym] || null;
   const qx = mort2024.qx;
 
+  const needsN =
+    form === FORMS.CERTAIN_N_CONTINUOUS ||
+    form === FORMS.CERTAIN_N_AND_LIFE_DUE_MTHLY;
+
   const result = useMemo(() => {
     const dob = parseISODate(DOB);
     const dote = parseISODate(DOTE);
@@ -39,21 +76,22 @@ export default function App() {
     const dor = parseISODate(DOR);
     const dopt = parseISODate(DOPT);
 
-    if (!dob || !dote || !nrd || !dor || !dopt)
+    if (!dob || !dote || !nrd || !dor || !dopt) {
       return { ok: false, msg: "Invalid date input(s)." };
-    if (!rates)
+    }
+    if (!rates) {
       return { ok: false, msg: `No segment rates found for DOPT month ${ym}.` };
+    }
 
     const Bnrd = num(benefitAtNRD, NaN);
-    if (!Number.isFinite(Bnrd) || Bnrd < 0)
+    if (!Number.isFinite(Bnrd) || Bnrd < 0) {
       return { ok: false, msg: "Benefit at NRD must be a nonnegative number." };
+    }
 
     const nYears = num(n, NaN);
-    const needsN =
-      form === FORMS.CERTAIN_N_CONTINUOUS ||
-      form === FORMS.CERTAIN_N_AND_LIFE_DUE_MTHLY;
-    if (needsN && !(nYears > 0))
+    if (needsN && !(nYears > 0)) {
       return { ok: false, msg: "n must be > 0 for this form." };
+    }
 
     try {
       const out = computeCase({
@@ -90,185 +128,177 @@ export default function App() {
     ym,
     rates,
     qx,
+    needsN,
   ]);
 
-  const needsN =
-    form === FORMS.CERTAIN_N_CONTINUOUS ||
-    form === FORMS.CERTAIN_N_AND_LIFE_DUE_MTHLY;
-
   return (
-    <div
-      style={{
-        maxWidth: 980,
-        margin: "0 auto",
-        padding: 16,
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <h2>PBGC §417(e) Lump-Sum Value (Browser Only)</h2>
+    <div className="app">
+      <header className="header">
+        <div>
+          <div className="h-title">§417(e) Lump-Sum Calculator</div>
+          <div className="h-sub">
+            Dark theme. Native date pickers. PBGC rounding conventions.
+          </div>
+        </div>
+        <div className="pill" title="DOPT month key used to select segment rates">
+          <span className="dot" />
+          <span>DOPT month: {ym || "—"}</span>
+        </div>
+      </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <label>
-          DOB
-          <input
-            type="date"
-            value={DOB}
-            onChange={(e) => setDOB(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
+      <hr className="sep" />
 
-        <label>
-          DOPT (Plan Termination Date)
-          <input
-            type="date"
-            value={DOPT}
-            onChange={(e) => setDOPT(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
+      <section className="card">
+        <h3>
+          <span className="bar" />
+          Inputs
+        </h3>
 
-        <label>
-          DOTE (Termination of Employment)
-          <input
-            type="date"
-            value={DOTE}
-            onChange={(e) => setDOTE(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
+        <div className="grid">
+          <div className="field">
+            <label>DOB</label>
+            <input type="date" value={DOB} onChange={(e) => setDOB(e.target.value)} />
+          </div>
 
-        <label>
-          Freeze Date (Benefit Freeze)
-          <input
-            type="date"
-            value={FreezeDate}
-            onChange={(e) => setFreezeDate(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
+          <div className="field">
+            <label>DOPT (Plan Termination Date)</label>
+            <input type="date" value={DOPT} onChange={(e) => setDOPT(e.target.value)} />
+          </div>
 
-        <label>
-          NRD (Normal Retirement Date)
-          <input
-            type="date"
-            value={NRD}
-            onChange={(e) => setNRD(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
+          <div className="field">
+            <label>DOTE (Termination of Employment)</label>
+            <input type="date" value={DOTE} onChange={(e) => setDOTE(e.target.value)} />
+          </div>
 
-        <label>
-          DOR (Requested Retirement Date / ASD)
-          <input
-            type="date"
-            value={DOR}
-            onChange={(e) => setDOR(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
+          <div className="field">
+            <label>Freeze Date (Benefit Freeze)</label>
+            <input
+              type="date"
+              value={FreezeDate}
+              onChange={(e) => setFreezeDate(e.target.value)}
+            />
+          </div>
 
-        <label>
-          Benefit at NRD (monthly)
-          <input
-            type="number"
-            step="0.01"
-            value={benefitAtNRD}
-            onChange={(e) => setBenefitAtNRD(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
+          <div className="field">
+            <label>NRD (Normal Retirement Date)</label>
+            <input type="date" value={NRD} onChange={(e) => setNRD(e.target.value)} />
+          </div>
 
-        <label>
-          Normal Single Form
-          <select
-            value={form}
-            onChange={(e) => setForm(e.target.value)}
-            style={{ width: "100%" }}
-          >
-            <option value={FORMS.LIFE_DUE_MTHLY}>
-              Straight life annuity due (monthly)
-            </option>
-            <option value={FORMS.CERTAIN_N_CONTINUOUS}>
-              N-year certain (continuous)
-            </option>
-            <option value={FORMS.CERTAIN_N_AND_LIFE_DUE_MTHLY}>
-              N-year certain &amp; life (due, monthly)
-            </option>
-          </select>
-        </label>
+          <div className="field">
+            <label>DOR (Requested Retirement Date / ASD)</label>
+            <input type="date" value={DOR} onChange={(e) => setDOR(e.target.value)} />
+          </div>
 
-        {needsN && (
-          <label>
-            n (certain period, years)
+          <div className="field">
+            <label>Benefit at NRD (monthly)</label>
             <input
               type="number"
               step="0.01"
-              value={n}
-              onChange={(e) => setN(e.target.value)}
-              style={{ width: "100%" }}
+              value={benefitAtNRD}
+              onChange={(e) => setBenefitAtNRD(e.target.value)}
             />
-          </label>
+          </div>
+
+          <div className="field">
+            <label>Normal Single Form</label>
+            <select value={form} onChange={(e) => setForm(e.target.value)}>
+              <option value={FORMS.LIFE_DUE_MTHLY}>
+                Straight life annuity due (monthly)
+              </option>
+              <option value={FORMS.CERTAIN_N_CONTINUOUS}>
+                N-year certain (continuous)
+              </option>
+              <option value={FORMS.CERTAIN_N_AND_LIFE_DUE_MTHLY}>
+                N-year certain &amp; life (due, monthly)
+              </option>
+            </select>
+          </div>
+
+          {needsN && (
+            <div className="field">
+              <label>n (certain period, years)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={n}
+                onChange={(e) => setN(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div className="field">
+            <label>Apply late retirement adj (PV ratio)</label>
+            <select
+              value={applyLateRetAdj ? "YES" : "NO"}
+              onChange={(e) => setApplyLateRetAdj(e.target.value === "YES")}
+            >
+              <option value="YES">Yes</option>
+              <option value="NO">No</option>
+            </select>
+          </div>
+
+          <div className="field">
+            <label>De minimis threshold</label>
+            <input
+              type="number"
+              step="1"
+              value={threshold}
+              onChange={(e) => setThreshold(e.target.value)}
+            />
+          </div>
+        </div>
+      </section>
+
+      <hr className="sep" />
+
+      <section className="card">
+        <h3>
+          <span className="bar" />
+          Assumptions (from DOPT month)
+        </h3>
+
+        {!rates ? (
+          <div className="alert error">
+            No segment rates found for <b>{ym}</b>. Add it to{" "}
+            <code>src/data/rates/segment_rates.json</code>.
+          </div>
+        ) : (
+          <div className="kv">
+            <div className="row">
+              <div className="key">Segment rates</div>
+              <div className="val">
+                i1={PCT_2.format(rates.i1)} &nbsp; i2={PCT_2.format(rates.i2)} &nbsp;
+                i3={PCT_2.format(rates.i3)}
+              </div>
+            </div>
+            <div className="row">
+              <div className="key">Mortality basis</div>
+              <div className="val">{mort2024.basisId}</div>
+            </div>
+          </div>
         )}
+      </section>
 
-        <label>
-          Apply late retirement adj (PV ratio)
-          <select
-            value={applyLateRetAdj ? "YES" : "NO"}
-            onChange={(e) => setApplyLateRetAdj(e.target.value === "YES")}
-            style={{ width: "100%" }}
-          >
-            <option value="YES">Yes</option>
-            <option value="NO">No</option>
-          </select>
-        </label>
+      <hr className="sep" />
 
-        <label>
-          De minimis threshold
-          <input
-            type="number"
-            step="1"
-            value={threshold}
-            onChange={(e) => setThreshold(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        </label>
-      </div>
+      <section className="card">
+        <h3>
+          <span className="bar" />
+          Results
+        </h3>
 
-      <hr style={{ margin: "16px 0" }} />
+        {!result.ok ? (
+          <div className="alert error">{result.msg}</div>
+        ) : (
+          <Results out={result.out} />
+        )}
+      </section>
 
-      <h3>Assumptions (from DOPT month)</h3>
-      {rates ? (
-        <div>
-          <div>
-            <b>DOPT month:</b> {ym}
-          </div>
-          <div>
-            <b>Segment rates:</b> i1={rates.i1}, i2={rates.i2}, i3={rates.i3}
-          </div>
-          <div>
-            <b>Mortality:</b> {mort2024.basisId}
-          </div>
-        </div>
-      ) : (
-        <div style={{ color: "crimson" }}>
-          No rates found for {ym}. Add to src/data/rates/segment_rates.json
-        </div>
-      )}
+      <hr className="sep" />
 
-      <hr style={{ margin: "16px 0" }} />
-
-      <h3>Results</h3>
-      {!result.ok ? (
-        <div style={{ color: "crimson" }}>{result.msg}</div>
-      ) : (
-        <Results out={result.out} />
-      )}
-
-      <hr style={{ margin: "16px 0" }} />
-      <details>
+      <details className="card">
         <summary>Copyable JSON output</summary>
-        <pre style={{ whiteSpace: "pre-wrap" }}>
+        <pre style={{ whiteSpace: "pre-wrap", marginTop: 10 }}>
           {result.ok ? JSON.stringify(result.out, null, 2) : ""}
         </pre>
       </details>
@@ -278,44 +308,67 @@ export default function App() {
 
 function Results({ out }) {
   const { ages, pvPer1, benefit, lumpSum, eligible, threshold } = out;
+
+  // PBGC display conventions requested
+  // Monthly amounts: 2 decimals
+  const benefitNRD = USD_2.format(benefit.benefitAtNRD_monthly);
+  const benefitDOR = USD_2.format(benefit.benefitAtDOR);
+
+  // Present values + lump sums: 0 decimals
+  // (You asked for PVs displayed to 0 decimals; these are PV FACTORS shown rounded to 0.)
+  const pvASD_NRD = NUM_0.format(pvPer1.pv1_atASD_NRD);
+  const pvASD_DOR = NUM_0.format(pvPer1.pv1_atASD_DOR);
+  const pvDOPT_NRD = NUM_0.format(pvPer1.pv1_atDOPT_NRD);
+  const pvDOPT_DOR = NUM_0.format(pvPer1.pv1_atDOPT_DOR);
+
+  // Lump sum as currency, 0 decimals
+  const lsv = USD_0.format(lumpSum);
+  const th = USD_0.format(Number(threshold));
+
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <div>
-        <b>Age at NRD:</b> {ages.ageNRD.toFixed(6)}
+    <div className="kv">
+      <div className="row">
+        <div className="key">Age at NRD</div>
+        <div className="val">{ages.ageNRD.toFixed(6)}</div>
       </div>
-      <div>
-        <b>Age at DOR:</b> {ages.ageDOR.toFixed(6)}
-      </div>
-
-      <div>
-        <b>PV per $1 at ASD (NRD):</b> {pvPer1.pv1_atASD_NRD.toFixed(8)}
-      </div>
-      <div>
-        <b>PV per $1 at ASD (DOR):</b> {pvPer1.pv1_atASD_DOR.toFixed(8)}
-      </div>
-      <div>
-        <b>PV per $1 valued at DOPT (NRD):</b>{" "}
-        {pvPer1.pv1_atDOPT_NRD.toFixed(8)}
-      </div>
-      <div>
-        <b>PV per $1 valued at DOPT (DOR):</b>{" "}
-        {pvPer1.pv1_atDOPT_DOR.toFixed(8)}
+      <div className="row">
+        <div className="key">Age at DOR</div>
+        <div className="val">{ages.ageDOR.toFixed(6)}</div>
       </div>
 
-      <div>
-        <b>Benefit at NRD (monthly):</b>{" "}
-        {benefit.benefitAtNRD_monthly.toFixed(2)}
+      <div className="row">
+        <div className="key">PV per $1 at ASD (NRD)</div>
+        <div className="val">{pvASD_NRD}</div>
       </div>
-      <div>
-        <b>Benefit at DOR (monthly):</b> {benefit.benefitAtDOR.toFixed(6)}
+      <div className="row">
+        <div className="key">PV per $1 at ASD (DOR)</div>
+        <div className="val">{pvASD_DOR}</div>
+      </div>
+      <div className="row">
+        <div className="key">PV per $1 valued at DOPT (NRD)</div>
+        <div className="val">{pvDOPT_NRD}</div>
+      </div>
+      <div className="row">
+        <div className="key">PV per $1 valued at DOPT (DOR)</div>
+        <div className="val">{pvDOPT_DOR}</div>
       </div>
 
-      <div style={{ fontSize: 18 }}>
-        <b>Lump Sum Value:</b> ${lumpSum.toFixed(2)}
+      <div className="row">
+        <div className="key">Benefit at NRD (monthly)</div>
+        <div className="val">{benefitNRD}</div>
       </div>
-      <div>
-        <b>De minimis:</b> {eligible ? "YES" : "NO"} (threshold $
-        {Number(threshold).toFixed(2)})
+      <div className="row">
+        <div className="key">Benefit at DOR (monthly)</div>
+        <div className="val">{benefitDOR}</div>
+      </div>
+
+      <div className="row">
+        <div className="key">Lump Sum Value</div>
+        <div className="val big">{lsv}</div>
+      </div>
+
+      <div className={`alert ${eligible ? "success" : "info"}`}>
+        <b>De minimis:</b> {eligible ? "YES" : "NO"} &nbsp; (threshold {th})
       </div>
     </div>
   );
