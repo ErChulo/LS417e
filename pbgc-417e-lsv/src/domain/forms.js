@@ -15,8 +15,20 @@ export const FORMS = {
  * - CERTAIN_N_CONTINUOUS:
  *      user benefit is $/month-equivalent. Internally annual rate = 12*$1.
  *      PV factor returns PV per $1/month-equivalent.
+ *
+ * IMPORTANT UPDATE:
+ * - Allow n = 0 for "certain & life". When n = 0, it collapses to straight life due.
+ * - Allow n = 0 for "certain continuous" (PV = 0).
  */
-export function pvPerDollar({ form, n, rates, qxByAge, ageAtASD, m = 12, maxAge = 120 }) {
+export function pvPerDollar({
+    form,
+    n,
+    rates,
+    qxByAge,
+    ageAtASD,
+    m = 12,
+    maxAge = 120,
+}) {
     if (m !== 12) throw new Error("This implementation assumes m=12.");
 
     if (form === FORMS.LIFE_DUE_MTHLY) {
@@ -36,8 +48,17 @@ export function pvPerDollar({ form, n, rates, qxByAge, ageAtASD, m = 12, maxAge 
 
 // ä_x^(12) per $1/month, due
 export function pvLifeDueMonthly({ rates, qxByAge, ageAtASD, maxAge }) {
-    const monthsToMax = Math.max(0, Math.ceil(12 * ((maxAge + 1) - Math.floor(ageAtASD))));
-    const surv = buildMonthlySurvival({ qxByAge, ageAt0: ageAtASD, nMonths: monthsToMax, maxAge });
+    const monthsToMax = Math.max(
+        0,
+        Math.ceil(12 * ((maxAge + 1) - Math.floor(ageAtASD)))
+    );
+
+    const surv = buildMonthlySurvival({
+        qxByAge,
+        ageAt0: ageAtASD,
+        nMonths: monthsToMax,
+        maxAge,
+    });
 
     let pv = 0;
     for (let k = 0; k <= monthsToMax; k++) {
@@ -48,14 +69,18 @@ export function pvLifeDueMonthly({ rates, qxByAge, ageAtASD, maxAge }) {
 
 // PV per $1/month-equivalent where payment is continuous for n years
 // If user enters $1/month, annual intensity is 12.
+// Allow n = 0 => PV = 0
 export function pvCertainContinuous({ n, rates }) {
     if (!(n > 0)) return 0;
     return 12 * intVSeg0n(n, rates);
 }
 
 // ä_{x:⟨n⟩}^(12) per $1/month, due
+// IMPORTANT UPDATE: allow n = 0 => collapse to straight life due
 export function pvCertainAndLifeDueMonthly({ n, rates, qxByAge, ageAtASD, maxAge }) {
-    if (!(n > 0)) throw new Error("n must be > 0 for certain & life.");
+    if (!(n > 0)) {
+        return pvLifeDueMonthly({ rates, qxByAge, ageAtASD, maxAge });
+    }
 
     const nMonthsCertain = Math.round(12 * n);
 
@@ -66,11 +91,22 @@ export function pvCertainAndLifeDueMonthly({ n, rates, qxByAge, ageAtASD, maxAge
     }
 
     // E_x(n) = _np_x * v(n)
-    const survToN = buildMonthlySurvival({ qxByAge, ageAt0: ageAtASD, nMonths: nMonthsCertain, maxAge })[nMonthsCertain];
+    const survToN = buildMonthlySurvival({
+        qxByAge,
+        ageAt0: ageAtASD,
+        nMonths: nMonthsCertain,
+        maxAge,
+    })[nMonthsCertain];
+
     const En = survToN * vSeg(n, rates);
 
     // deferred life due at age x+n
-    const aLifeDeferred = pvLifeDueMonthly({ rates, qxByAge, ageAtASD: ageAtASD + n, maxAge });
+    const aLifeDeferred = pvLifeDueMonthly({
+        rates,
+        qxByAge,
+        ageAtASD: ageAtASD + n,
+        maxAge,
+    });
 
     return aCertain + En * aLifeDeferred;
 }

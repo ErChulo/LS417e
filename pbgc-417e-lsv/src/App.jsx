@@ -8,7 +8,7 @@ import { computeCase } from "./domain/engine.js";
 import { FORMS } from "./domain/forms.js";
 
 /**
- * PBGC display rules (per your instructions):
+ * Display rules (per your instructions):
  * 1) Monthly amounts: 2 decimals
  * 2) Present values + lump sums: 0 decimals
  * 3) Currency: commas (grouping)
@@ -55,7 +55,7 @@ export default function App() {
   const [benefitAtNRD, setBenefitAtNRD] = useState("73.79");
 
   const [form, setForm] = useState(FORMS.CERTAIN_N_AND_LIFE_DUE_MTHLY);
-  const [n, setN] = useState("3");
+  const [n, setN] = useState("3"); // NOW allowed to be 0 for term-certain forms
 
   const [applyLateRetAdj, setApplyLateRetAdj] = useState(true);
   const [threshold, setThreshold] = useState("5000");
@@ -88,9 +88,10 @@ export default function App() {
       return { ok: false, msg: "Benefit at NRD must be a nonnegative number." };
     }
 
+    // IMPORTANT UPDATE: allow n = 0
     const nYears = num(n, NaN);
-    if (needsN && !(nYears > 0)) {
-      return { ok: false, msg: "n must be > 0 for this form." };
+    if (needsN && !(nYears >= 0)) {
+      return { ok: false, msg: "n must be >= 0 for this form." };
     }
 
     try {
@@ -140,7 +141,10 @@ export default function App() {
             Dark theme. Native date pickers. PBGC rounding conventions.
           </div>
         </div>
-        <div className="pill" title="DOPT month key used to select segment rates">
+        <div
+          className="pill"
+          title="DOPT month key used to select segment rates"
+        >
           <span className="dot" />
           <span>DOPT month: {ym || "—"}</span>
         </div>
@@ -157,17 +161,29 @@ export default function App() {
         <div className="grid">
           <div className="field">
             <label>DOB</label>
-            <input type="date" value={DOB} onChange={(e) => setDOB(e.target.value)} />
+            <input
+              type="date"
+              value={DOB}
+              onChange={(e) => setDOB(e.target.value)}
+            />
           </div>
 
           <div className="field">
             <label>DOPT (Plan Termination Date)</label>
-            <input type="date" value={DOPT} onChange={(e) => setDOPT(e.target.value)} />
+            <input
+              type="date"
+              value={DOPT}
+              onChange={(e) => setDOPT(e.target.value)}
+            />
           </div>
 
           <div className="field">
             <label>DOTE (Termination of Employment)</label>
-            <input type="date" value={DOTE} onChange={(e) => setDOTE(e.target.value)} />
+            <input
+              type="date"
+              value={DOTE}
+              onChange={(e) => setDOTE(e.target.value)}
+            />
           </div>
 
           <div className="field">
@@ -181,12 +197,20 @@ export default function App() {
 
           <div className="field">
             <label>NRD (Normal Retirement Date)</label>
-            <input type="date" value={NRD} onChange={(e) => setNRD(e.target.value)} />
+            <input
+              type="date"
+              value={NRD}
+              onChange={(e) => setNRD(e.target.value)}
+            />
           </div>
 
           <div className="field">
             <label>DOR (Requested Retirement Date / ASD)</label>
-            <input type="date" value={DOR} onChange={(e) => setDOR(e.target.value)} />
+            <input
+              type="date"
+              value={DOR}
+              onChange={(e) => setDOR(e.target.value)}
+            />
           </div>
 
           <div className="field">
@@ -216,7 +240,7 @@ export default function App() {
 
           {needsN && (
             <div className="field">
-              <label>n (certain period, years)</label>
+              <label>n (certain period, years) — allow 0</label>
               <input
                 type="number"
                 step="0.01"
@@ -267,8 +291,8 @@ export default function App() {
             <div className="row">
               <div className="key">Segment rates</div>
               <div className="val">
-                i1={PCT_2.format(rates.i1)} &nbsp; i2={PCT_2.format(rates.i2)} &nbsp;
-                i3={PCT_2.format(rates.i3)}
+                i1={PCT_2.format(rates.i1)} &nbsp; i2={PCT_2.format(rates.i2)}{" "}
+                &nbsp; i3={PCT_2.format(rates.i3)}
               </div>
             </div>
             <div className="row">
@@ -309,19 +333,17 @@ export default function App() {
 function Results({ out }) {
   const { ages, pvPer1, benefit, lumpSum, eligible, threshold } = out;
 
-  // PBGC display conventions requested
   // Monthly amounts: 2 decimals
   const benefitNRD = USD_2.format(benefit.benefitAtNRD_monthly);
   const benefitDOR = USD_2.format(benefit.benefitAtDOR);
 
-  // Present values + lump sums: 0 decimals
-  // (You asked for PVs displayed to 0 decimals; these are PV FACTORS shown rounded to 0.)
+  // PV factors: 0 decimals (per your instruction)
   const pvASD_NRD = NUM_0.format(pvPer1.pv1_atASD_NRD);
   const pvASD_DOR = NUM_0.format(pvPer1.pv1_atASD_DOR);
   const pvDOPT_NRD = NUM_0.format(pvPer1.pv1_atDOPT_NRD);
   const pvDOPT_DOR = NUM_0.format(pvPer1.pv1_atDOPT_DOR);
 
-  // Lump sum as currency, 0 decimals
+  // Lump sum: currency, 0 decimals
   const lsv = USD_0.format(lumpSum);
   const th = USD_0.format(Number(threshold));
 
